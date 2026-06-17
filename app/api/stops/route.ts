@@ -35,8 +35,9 @@ export async function GET(req: NextRequest) {
   const enriched = rows.map(row => ({
     ...row,
     zustellfenster: getZustellfenster(
-      row.kdnr as string | null,
+      row.kdnr  as string | null,
       row.datum as string | null,
+      row.kunde as string | null,
     ),
   }));
 

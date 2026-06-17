@@ -16,10 +16,25 @@ export type ZustellFenster = {
   bis2: string | null;
 } | null;
 
-export function getZustellfenster(kdnr: string | null, datum: string | null): ZustellFenster {
-  if (!kdnr) return null;
+// Resolve lookup key: prefer explicit kdnr, fall back to extracting a 4-6 digit
+// number from the customer name (e.g. "FILIALE 03504" → "03504").
+function resolveKey(kdnr: string | null, kunde: string | null): string | null {
+  if (kdnr) return kdnr;
+  if (!kunde) return null;
+  const m = kunde.match(/\b(\d{4,6})\b/);
+  if (!m) return null;
+  return m[1].padStart(5, '0');
+}
 
-  const filiale = lookup[kdnr];
+export function getZustellfenster(
+  kdnr: string | null,
+  datum: string | null,
+  kunde?: string | null,
+): ZustellFenster {
+  const key = resolveKey(kdnr, kunde ?? null);
+  if (!key) return null;
+
+  const filiale = lookup[key];
   if (!filiale) return null;
 
   // Determine day of week from datum (YYYY-MM-DD) or today
