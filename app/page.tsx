@@ -743,12 +743,12 @@ export default function Dashboard() {
           {hallenlisten.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 60 }}>
               <div className="empty-state__icon">📂</div>
-              <p style={{ fontWeight: 600, color: 'var(--lmo-pine)' }}>Noch keine Hallenliste geladen</p>
+              <p style={{ fontWeight: 600, color: 'var(--lmo-pine)' }}>Noch keine Listen geladen</p>
               <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                Der Disponent lädt die Liste jeden Abend hoch.
+                Bitte Hallenliste und Dispoplan hochladen.
               </p>
               <Link href="/upload" className="btn-primary" style={{ marginTop: 16 }}>
-                ↑ Hallenliste jetzt hochladen
+                ↑ Listen hochladen
               </Link>
             </div>
           ) : (

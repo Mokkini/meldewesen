@@ -314,7 +314,7 @@ export default function UploadPage() {
       <div className="page-heading">
         <div>
           <h1>Listen importieren</h1>
-          <p>Hallenliste und Dispoplan hochladen – täglich vom Disponenten</p>
+          <p>Hallenliste und Dispoplan hochladen</p>
         </div>
       </div>
 
