@@ -294,6 +294,7 @@ td.truncate { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white
 }
 .empty-state__icon { font-size: 40px; }
 .empty-state a { color: var(--lmo-ocean); font-size: 13px; }
+.empty-state a.btn-primary { color: #fff; }
 .loading { padding: 50px; text-align: center; color: var(--muted); }
 
 /* ── Delete btn ── */
