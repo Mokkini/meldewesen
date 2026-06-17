@@ -7,10 +7,16 @@ import type { Stop } from '@/lib/db';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type ZustellFenster = {
+  von: string | null; bis: string | null;
+  von2: string | null; bis2: string | null;
+} | null;
+
 type StopWithMeta = Stop & {
   depot: string; datum: string;
   fahrer_name: string | null;
   fahrer_tel:  string | null;
+  zustellfenster: ZustellFenster;
 };
 
 type TourGroup = {
@@ -152,6 +158,12 @@ function StopRow({ stop, onUpdate }: { stop: StopWithMeta; onUpdate: (id: number
         <div className="stop-row__info">
           <span className="stop-row__kunde">{stop.kunde ?? '–'}</span>
           {adresse && <span className="stop-row__adresse">{adresse}</span>}
+          {stop.zustellfenster?.von && (
+            <span className="stop-row__fenster">
+              🕐 {stop.zustellfenster.von}–{stop.zustellfenster.bis}
+              {stop.zustellfenster.von2 && ` / ${stop.zustellfenster.von2}–${stop.zustellfenster.bis2}`}
+            </span>
+          )}
         </div>
         {stop.sendungen && <span className="stop-row__sdg">{stop.sendungen} Sdg.</span>}
 

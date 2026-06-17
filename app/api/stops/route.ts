@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getZustellfenster } from '@/lib/filialen-zeiten';
 
 export async function GET(req: NextRequest) {
   const db = getDb();
@@ -28,6 +29,16 @@ export async function GET(req: NextRequest) {
 
   query += ' ORDER BY s.fahrzeug, s.reihenfolge';
 
-  const rows = db.prepare(query).all(...params);
-  return NextResponse.json(rows);
+  const rows = db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+
+  // Enrich each stop with the delivery time window for the stop's date
+  const enriched = rows.map(row => ({
+    ...row,
+    zustellfenster: getZustellfenster(
+      row.kdnr as string | null,
+      row.datum as string | null,
+    ),
+  }));
+
+  return NextResponse.json(enriched);
 }

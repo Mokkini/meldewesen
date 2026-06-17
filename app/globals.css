@@ -737,6 +737,11 @@ td.truncate { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white
   color: #7c3aed;
   background: rgba(124,58,237,.1);
 }
+.stop-row__fenster {
+  font-size: 11px;
+  color: #7c3aed;
+  margin-top: 1px;
+}
 .stop-row__info {
   flex: 1;
   min-width: 0;
