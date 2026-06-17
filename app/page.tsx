@@ -126,7 +126,9 @@ function StopRow({ stop, onUpdate }: { stop: StopWithMeta; onUpdate: (id: number
   const [showForm, setShowForm] = useState(false);
 
   const adresse = [stop.strasse, stop.plz && stop.ort ? `${stop.plz} ${stop.ort}` : stop.ort].filter(Boolean).join(', ');
-  const artIcon = stop.art === 'Abholung' ? '↩' : '📦';
+  const artIcon =
+    stop.art === 'Abholung'                ? '↩'   :
+    stop.art === 'Zustellung + Abholung'   ? '📦↩' : '📦';
 
   async function setOk() {
     onUpdate(stop.id, { status: 'ok' });
@@ -141,7 +143,10 @@ function StopRow({ stop, onUpdate }: { stop: StopWithMeta; onUpdate: (id: number
     <div className={`stop-row stop-row--${stop.status}`}>
       <div className="stop-row__main">
         <span className="stop-row__time">{stop.zeit ?? '–'}</span>
-        <span className={`stop-row__art ${stop.art === 'Abholung' ? 'stop-row__art--abholung' : ''}`}>
+        <span className={`stop-row__art ${
+          stop.art === 'Abholung'              ? 'stop-row__art--abholung' :
+          stop.art === 'Zustellung + Abholung' ? 'stop-row__art--kombi'    : ''
+        }`}>
           {artIcon} {stop.art}
         </span>
         <div className="stop-row__info">

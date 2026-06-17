@@ -732,6 +732,10 @@ td.truncate { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white
   color: var(--lmo-coral);
   background: rgba(210,90,100,.1);
 }
+.stop-row__art--kombi {
+  color: #7c3aed;
+  background: rgba(124,58,237,.1);
+}
 .stop-row__info {
   flex: 1;
   min-width: 0;
