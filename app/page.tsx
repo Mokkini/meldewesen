@@ -270,19 +270,47 @@ function TourCard({ group, onUpdate, onBulkOk }: {
 }) {
   const [open, setOpen] = useState(false);
 
-  const total   = group.stops.length;
-  const ok      = group.stops.filter(s => s.status === 'ok').length;
-  const problem = group.stops.filter(s => s.status === 'problem').length;
-  const offen   = group.stops.filter(s => s.status === 'offen').length;
+  // Build pair-aware entries so Zustellung+Abholung pairs count as 1 stop
+  const entries = buildStopEntries(group.stops);
+  const total = entries.length;
+
+  const ok = entries.filter(e =>
+    e.kind === 'pair'
+      ? e.zustellung.status === 'ok' && e.abholung.status === 'ok'
+      : e.stop.status === 'ok'
+  ).length;
+
+  const problem = entries.filter(e =>
+    e.kind === 'pair'
+      ? e.zustellung.status !== 'offen' && e.abholung.status !== 'offen' &&
+        (e.zustellung.status === 'problem' || e.abholung.status === 'problem')
+      : e.stop.status === 'problem'
+  ).length;
+
+  const offen = entries.filter(e =>
+    e.kind === 'pair'
+      ? e.zustellung.status === 'offen' || e.abholung.status === 'offen'
+      : e.stop.status === 'offen'
+  ).length;
+
   const done    = ok + problem;
   const pct     = total > 0 ? Math.round((done / total) * 100) : 0;
   const allDone = offen === 0;
 
   function handleAlleOk(e: React.MouseEvent) {
     e.stopPropagation();
-    const offeneIds = group.stops.filter(s => s.status === 'offen').map(s => s.id);
+    // Collect all individual stop IDs that are still offen (both from pairs and singles)
+    const offeneIds = entries.flatMap(entry => {
+      if (entry.kind === 'pair') {
+        return [
+          ...(entry.zustellung.status === 'offen' ? [entry.zustellung.id] : []),
+          ...(entry.abholung.status   === 'offen' ? [entry.abholung.id]   : []),
+        ];
+      }
+      return entry.stop.status === 'offen' ? [entry.stop.id] : [];
+    });
     if (offeneIds.length === 0) return;
-    if (!confirm(`Alle ${offeneIds.length} offenen Stops von Tour ${group.tour} als OK markieren?`)) return;
+    if (!confirm(`Alle ${offen} offenen Stops von Tour ${group.tour} als OK markieren?`)) return;
     onBulkOk(offeneIds);
   }
 
