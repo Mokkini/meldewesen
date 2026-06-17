@@ -128,13 +128,15 @@ function ProblemForm({
   );
 }
 
-function StopRow({ stop, onUpdate }: { stop: StopWithMeta; onUpdate: (id: number, data: Partial<Stop>) => void }) {
+function StopRow({ stop, onUpdate, paired }: {
+  stop: StopWithMeta;
+  onUpdate: (id: number, data: Partial<Stop>) => void;
+  paired?: boolean;
+}) {
   const [showForm, setShowForm] = useState(false);
 
   const adresse = [stop.strasse, stop.plz && stop.ort ? `${stop.plz} ${stop.ort}` : stop.ort].filter(Boolean).join(', ');
-  const artIcon =
-    stop.art === 'Abholung'                ? '↩'   :
-    stop.art === 'Zustellung + Abholung'   ? '📦↩' : '📦';
+  const artIcon = stop.art === 'Abholung' ? '↩' : '📦';
 
   async function setOk() {
     onUpdate(stop.id, { status: 'ok' });
@@ -149,22 +151,21 @@ function StopRow({ stop, onUpdate }: { stop: StopWithMeta; onUpdate: (id: number
     <div className={`stop-row stop-row--${stop.status}`}>
       <div className="stop-row__main">
         <span className="stop-row__time">{stop.zeit ?? '–'}</span>
-        <span className={`stop-row__art ${
-          stop.art === 'Abholung'              ? 'stop-row__art--abholung' :
-          stop.art === 'Zustellung + Abholung' ? 'stop-row__art--kombi'    : ''
-        }`}>
+        <span className={`stop-row__art ${stop.art === 'Abholung' ? 'stop-row__art--abholung' : ''}`}>
           {artIcon} {stop.art}
         </span>
-        <div className="stop-row__info">
-          <span className="stop-row__kunde">{stop.kunde ?? '–'}</span>
-          {adresse && <span className="stop-row__adresse">{adresse}</span>}
-          {stop.zustellfenster?.von && (
-            <span className="stop-row__fenster">
-              🕐 {stop.zustellfenster.von}–{stop.zustellfenster.bis}
-              {stop.zustellfenster.von2 && ` / ${stop.zustellfenster.von2}–${stop.zustellfenster.bis2}`}
-            </span>
-          )}
-        </div>
+        {!paired && (
+          <div className="stop-row__info">
+            <span className="stop-row__kunde">{stop.kunde ?? '–'}</span>
+            {adresse && <span className="stop-row__adresse">{adresse}</span>}
+            {stop.zustellfenster?.von && (
+              <span className="stop-row__fenster">
+                🕐 {stop.zustellfenster.von}–{stop.zustellfenster.bis}
+                {stop.zustellfenster.von2 && ` / ${stop.zustellfenster.von2}–${stop.zustellfenster.bis2}`}
+              </span>
+            )}
+          </div>
+        )}
         {stop.sendungen && <span className="stop-row__sdg">{stop.sendungen} Sdg.</span>}
 
         {/* Actions */}
@@ -201,6 +202,63 @@ function StopRow({ stop, onUpdate }: { stop: StopWithMeta; onUpdate: (id: number
       {showForm && (
         <ProblemForm stop={stop} onSave={saveProblem} onCancel={() => setShowForm(false)} />
       )}
+    </div>
+  );
+}
+
+// ─── Zustellung+Abholung pairing ─────────────────────────────────────────────
+
+function pairKey(s: StopWithMeta): string {
+  if (s.kdnr) return `kdnr:${s.kdnr}`;
+  return `addr:${s.kunde ?? ''}|${s.strasse ?? ''}`;
+}
+
+type StopEntry =
+  | { kind: 'single'; stop: StopWithMeta }
+  | { kind: 'pair';   zustellung: StopWithMeta; abholung: StopWithMeta };
+
+function buildStopEntries(stops: StopWithMeta[]): StopEntry[] {
+  const groups = new Map<string, StopWithMeta[]>();
+  const order: string[] = [];
+  for (const s of stops) {
+    const k = pairKey(s);
+    if (!groups.has(k)) { groups.set(k, []); order.push(k); }
+    groups.get(k)!.push(s);
+  }
+  const result: StopEntry[] = [];
+  for (const k of order) {
+    const g = groups.get(k)!;
+    const zu = g.find(s => s.art === 'Zustellung');
+    const ab = g.find(s => s.art === 'Abholung');
+    if (g.length === 2 && zu && ab) {
+      result.push({ kind: 'pair', zustellung: zu, abholung: ab });
+    } else {
+      for (const s of g) result.push({ kind: 'single', stop: s });
+    }
+  }
+  return result;
+}
+
+function StopPair({ zustellung, abholung, onUpdate }: {
+  zustellung: StopWithMeta;
+  abholung: StopWithMeta;
+  onUpdate: (id: number, data: Partial<Stop>) => void;
+}) {
+  const adresse = [zustellung.strasse, zustellung.plz && zustellung.ort ? `${zustellung.plz} ${zustellung.ort}` : zustellung.ort].filter(Boolean).join(', ');
+  return (
+    <div className="stop-pair">
+      <div className="stop-pair__header">
+        <span className="stop-pair__kunde">{zustellung.kunde ?? '–'}</span>
+        {adresse && <span className="stop-pair__adresse">{adresse}</span>}
+        {zustellung.zustellfenster?.von && (
+          <span className="stop-row__fenster">
+            🕐 {zustellung.zustellfenster.von}–{zustellung.zustellfenster.bis}
+            {zustellung.zustellfenster.von2 && ` / ${zustellung.zustellfenster.von2}–${zustellung.zustellfenster.bis2}`}
+          </span>
+        )}
+      </div>
+      <StopRow stop={zustellung} onUpdate={onUpdate} paired />
+      <StopRow stop={abholung}   onUpdate={onUpdate} paired />
     </div>
   );
 }
@@ -275,9 +333,18 @@ function TourCard({ group, onUpdate, onBulkOk }: {
 
       {open && (
         <div className="tour-body">
-          {group.stops.map(s => (
-            <StopRow key={s.id} stop={s} onUpdate={onUpdate} />
-          ))}
+          {buildStopEntries(group.stops).map((entry, i) =>
+            entry.kind === 'pair' ? (
+              <StopPair
+                key={`pair-${entry.zustellung.id}-${entry.abholung.id}`}
+                zustellung={entry.zustellung}
+                abholung={entry.abholung}
+                onUpdate={onUpdate}
+              />
+            ) : (
+              <StopRow key={entry.stop.id} stop={entry.stop} onUpdate={onUpdate} />
+            )
+          )}
         </div>
       )}
     </div>

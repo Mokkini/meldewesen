@@ -17,66 +17,6 @@ function cleanStr(v: unknown): string | null {
   return s || null;
 }
 
-type RawStop = {
-  fahrzeug: string;
-  tour: string;
-  unternehmer: string;
-  reihenfolge: number | null;
-  zeit: string | null;
-  art: string;
-  kdnr: string | null;
-  kunde: string | null;
-  strasse: string | null;
-  plz: string | null;
-  ort: string | null;
-  sendungen: number | null;
-};
-
-// Returns a key that uniquely identifies the customer within a tour.
-// kdnr is preferred; falls back to kunde+strasse.
-function mergeKey(s: RawStop): string {
-  if (s.kdnr) return `${s.fahrzeug}\x00k:${s.kdnr}`;
-  return `${s.fahrzeug}\x00a:${s.kunde ?? ''}\x00${s.strasse ?? ''}`;
-}
-
-// Merges rows where the same customer has exactly one Zustellung AND one Abholung
-// in the same tour. All other rows pass through unchanged.
-function mergeZustellungAbholung(stops: RawStop[]): RawStop[] {
-  const groups = new Map<string, RawStop[]>();
-  const order: string[] = [];
-
-  for (const stop of stops) {
-    const key = mergeKey(stop);
-    if (!groups.has(key)) { groups.set(key, []); order.push(key); }
-    groups.get(key)!.push(stop);
-  }
-
-  const result: RawStop[] = [];
-
-  for (const key of order) {
-    const group = groups.get(key)!;
-
-    if (group.length === 2) {
-      const zu = group.find(s => s.art === 'Zustellung');
-      const ab = group.find(s => s.art === 'Abholung');
-
-      if (zu && ab) {
-        // Merge: use Zustellung as base, combine sendungen
-        result.push({
-          ...zu,
-          art: 'Zustellung + Abholung',
-          sendungen: ((zu.sendungen ?? 0) + (ab.sendungen ?? 0)) || null,
-        });
-        continue;
-      }
-    }
-
-    result.push(...group);
-  }
-
-  return result;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -103,29 +43,6 @@ export async function POST(req: NextRequest) {
       return art && art !== 'Depot' && r[0] !== null;
     });
 
-    // Parse raw rows into typed stops
-    const rawStops: RawStop[] = dataRows.map(row => {
-      const fahrzeug = cleanStr(row[0]) ?? '';
-      const { tour, unternehmer } = parseFahrzeug(fahrzeug);
-      return {
-        fahrzeug,
-        tour,
-        unternehmer,
-        reihenfolge: row[1] !== null ? Number(row[1]) : null,
-        zeit:        cleanStr(row[2]),
-        art:         cleanStr(row[3]) ?? 'Zustellung',
-        kdnr:        cleanStr(row[4]),
-        kunde:       cleanStr(row[5]),
-        strasse:     cleanStr(row[6]),
-        plz:         cleanStr(row[7]),
-        ort:         cleanStr(row[8]),
-        sendungen:   row[9] !== null ? Number(row[9]) : null,
-      };
-    });
-
-    // Merge Zustellung + Abholung for the same customer in the same tour
-    const mergedStops = mergeZustellungAbholung(rawStops);
-
     const db = getDb();
 
     // Check if a Hallenliste for this depot+datum already exists and delete it
@@ -136,17 +53,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Count unique fahrzeuge (tours)
-    const fahrzeugeSet = new Set(mergedStops.map(s => s.fahrzeug).filter(Boolean));
+    const fahrzeugeSet = new Set(dataRows.map(r => cleanStr(r[0])).filter(Boolean));
 
-    // Insert Hallenliste header — stops_total reflects merged count
+    // Insert Hallenliste header
     const hlResult = db.prepare(`
       INSERT INTO hallenlisten (depot, datum, dateiname, fahrzeuge, stops_total)
       VALUES (?, ?, ?, ?, ?)
-    `).run(depot, datum, file.name, fahrzeugeSet.size, mergedStops.length);
+    `).run(depot, datum, file.name, fahrzeugeSet.size, dataRows.length);
 
     const hlId = hlResult.lastInsertRowid as number;
 
-    // Insert all (merged) stops
+    // Insert all stops individually — Zustellung and Abholung stay as separate rows
+    // so they can be processed independently. Visual grouping happens in the UI.
     const insertStop = db.prepare(`
       INSERT INTO stops
         (hallenliste_id, fahrzeug, tour, unternehmer, reihenfolge, zeit, art,
@@ -156,23 +74,35 @@ export async function POST(req: NextRequest) {
          @kdnr, @kunde, @strasse, @plz, @ort, @sendungen)
     `);
 
-    const insertMany = db.transaction((stops: RawStop[]) => {
-      for (const s of stops) {
-        insertStop.run({ hlId, ...s });
+    const insertMany = db.transaction((rows: unknown[][]) => {
+      for (const row of rows) {
+        const fahrzeug = cleanStr(row[0]) ?? '';
+        const { tour, unternehmer } = parseFahrzeug(fahrzeug);
+        insertStop.run({
+          hlId,
+          fahrzeug,
+          tour,
+          unternehmer,
+          reihenfolge: row[1] !== null ? Number(row[1]) : null,
+          zeit:        cleanStr(row[2]),
+          art:         cleanStr(row[3]) ?? 'Zustellung',
+          kdnr:        cleanStr(row[4]),
+          kunde:       cleanStr(row[5]),
+          strasse:     cleanStr(row[6]),
+          plz:         cleanStr(row[7]),
+          ort:         cleanStr(row[8]),
+          sendungen:   row[9] !== null ? Number(row[9]) : null,
+        });
       }
     });
 
-    insertMany(mergedStops);
-
-    const mergedCount = rawStops.length - mergedStops.length;
+    insertMany(dataRows);
 
     return NextResponse.json({
       ok: true,
       hallenliste_id: hlId,
       touren: fahrzeugeSet.size,
-      stops: mergedStops.length,
-      stops_roh: rawStops.length,
-      zusammengefuehrt: mergedCount,
+      stops: dataRows.length,
     }, { status: 201 });
 
   } catch (err) {
