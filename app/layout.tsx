@@ -28,8 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </Link>
           <nav>
-            <Link href="/">Übersicht</Link>
-            <Link href="/upload">↑ Liste hochladen</Link>
+            <Link href="/">Start</Link>
+            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/upload">↑ Listen hochladen</Link>
             <Link href="/neu" className="btn-new">+ Manuell</Link>
           </nav>
         </header>
