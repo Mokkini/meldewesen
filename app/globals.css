@@ -806,6 +806,7 @@ td.truncate { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 .btn-stop-ok {
   background: var(--lmo-ocean);
